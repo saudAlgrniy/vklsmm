@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مشغل فيديو</title>
+    <style>
+
+
+		/* تنسيق عام */
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #fefefe;
+    margin: 0;
+    padding: 40px;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+h1 {
+    font-size: 2.8rem;
+    color: #ff5a5f;
+    margin-bottom: 20px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    text-align: center;
+}
+
+/* تنسيق الفيديو */
+video {
+    width: 100%;
+    max-width: 800px;
+    border-radius: 8px;
+    border: 2px solid #333;
+    margin-bottom: 20px;
+    transition: border-color 0.3s ease, transform 0.3s ease;
+}
+
+video:hover {
+    border-color: #ff5a5f;
+    transform: scale(1.02);
+}
+
+/* تنسيق الإدخال والأزرار */
+div {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+input[type="text"], input[type="file"] {
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #fff;
+    width: 300px;
+    margin-bottom: 10px;
+    font-size: 1rem;
+    color: #333;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+input[type="text"]::placeholder {
+    color: #aaa;
+}
+
+input[type="text"]:focus, input[type="file"]:focus {
+    outline: none;
+    border-color: #ff5a5f;
+    box-shadow: 0 3px 10px rgba(255, 90, 95, 0.2);
+}
+
+/* الأزرار */
+button {
+    padding: 10px 20px;
+    margin: 5px;
+    background-color: #ff5a5f;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+button:hover {
+    background-color: #ff7378;
+    box-shadow: 0 5px 15px rgba(255, 90, 95, 0.3);
+}
+
+button:active {
+    background-color: #e24e52;
+}
+
+/* تنسيق النص */
+p {
+    font-size: 1.1rem;
+    color: #555;
+}
+
+#subtitleAdjustment {
+    font-weight: bold;
+    color: #ff5a5f;
+}
+
+    </style>
+</head>
+<body>
+
+<h1>مشغل فيديو WebM</h1>
+
+<video id="videoPlayer" controls>
+    <source id="videoSource" src="" type="video/webm">
+    <track id="vttTrack" kind="subtitles" srclang="ar" label="الترجمة">
+    عذراً، متصفحك لا يدعم تشغيل الفيديو.
+</video>
+
+<div>
+    <label for="videoUrl">رابط الفيديو:</label>
+    <input type="text" id="videoUrl" placeholder="أدخل رابط الفيديو هنا">
+    <button onclick="loadVideo()">تحميل الفيديو</button>
+</div>
+
+<div>
+    <label for="vttFile">رفع ملف الترجمة (.vtt):</label>
+    <input type="file" id="vttFile" accept=".vtt">
+</div>
+
+<div>
+    <button onclick="playPause()">تشغيل/إيقاف</button>
+    <button onclick="stopVideo()">إيقاف</button>
+    <button onclick="rewindVideo()">إرجاع 10 ثوانٍ</button>
+    <button onclick="forwardVideo()">تقديم 10 ثوانٍ</button>
+</div>
+
+<div>
+    <button onclick="adjustSubtitles(0.5)">تقديم الترجمة</button>
+    <button onclick="adjustSubtitles(-0.5)">تأخير الترجمة</button>
+</div>
+
+<div>
+    <p>المقدار الحالي للتعديل: <span id="subtitleAdjustment">0.0</span> ثوانٍ</p>
+</div>
+
+<script>
+    const videoPlayer = document.getElementById('videoPlayer');
+    let track;
+    let adjustment = 0; // متغير لتخزين مقدار التعديل
+
+    function loadVideo() {
+        const url = document.getElementById('videoUrl').value;
+        const videoSource = document.getElementById('videoSource');
+        videoSource.src = url;
+
+        videoPlayer.load();
+        videoPlayer.play();
+
+        const fileInput = document.getElementById('vttFile');
+        if (fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const vttData = e.target.result;
+                addCuesToVideo(vttData);
+            };
+
+            reader.readAsText(file);
+        }
+    }
+
+    function addCuesToVideo(vttData) {
+        track = videoPlayer.addTextTrack("subtitles", "الترجمة", "ar");
+        track.mode = 'showing';
+
+        const lines = vttData.split('\n');
+        let cueText = "";
+        let startTime = null;
+        let endTime = null;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line.startsWith("vttcue")) {
+                const cueMatch = line.match(/vttcue\(([^,]+), ([^)]+)\)/);
+                if (cueMatch) {
+                    if (cueText) {
+                        track.addCue(new VTTCue(startTime, endTime, cueText.trim()));
+                        cueText = "";
+                    }
+                    startTime = parseFloat(cueMatch[1]);
+                    endTime = parseFloat(cueMatch[2]);
+                }
+            } else if (line !== "") {
+                cueText += line + "\n";
+            }
+        }
+
+        if (cueText) {
+            track.addCue(new VTTCue(startTime, endTime, cueText.trim()));
+        }
+    }
+
+    function adjustSubtitles(offset) {
+        if (!track) return;
+
+        for (let i = 0; i < track.cues.length; i++) {
+            const cue = track.cues[i];
+            cue.startTime += offset;
+            cue.endTime += offset;
+        }
+
+        adjustment += offset; // تحديث مقدار التعديل
+        document.getElementById('subtitleAdjustment').innerText = adjustment.toFixed(1); // تحديث العداد
+    }
+
+    function playPause() {
+        if (videoPlayer.paused) {
+            videoPlayer.play();
+        } else {
+            videoPlayer.pause();
+        }
+    }
+
+    function stopVideo() {
+        videoPlayer.pause();
+        videoPlayer.currentTime = 0;
+    }
+
+    function rewindVideo() {
+        videoPlayer.currentTime -= 10;
+    }
+
+    function forwardVideo() {
+        videoPlayer.currentTime += 10;
+    }
+</script>
+
+</body>
+</html>
